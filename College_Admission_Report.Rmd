@@ -13,49 +13,34 @@ knitr::opts_chunk$set(echo = TRUE)
 library(rsample)
 library(caret)
 library(tidyverse)
-library(tfestimators)
-```
-```{r}
+
 # import dataset
 coladm <- read.csv("C:\\Users\\ghadi\\Documents\\DataSet\\College_admission.csv")
 
 ```
-
+# make sure data is tidy
 ```{r}
-#set.seed(123)
-#split  <- rsample::initial_split(coladm, prop = 0.7,strata = "admit")
-#coladm_train  <- rsample::training(split)
-#coladm_test   <- rsample::testing(split)
-
-set.seed(123)
-coladm_split <- initial_split(coladm, prop = 0.7, strata = "admit")
-coladm_train <- training(coladm_split)
-coladm_test  <- testing(coladm_split)
-# Do the distributions line up? 
-ggplot(coladm_train, aes(x = admit)) + 
-  geom_line(stat = "density", 
-            trim = TRUE) + 
-  geom_line(data = coladm_test, 
-            stat = "density", 
-            trim = TRUE, col = "red")
+coladm <- drop_na(coladm)
+```
+#exploratory data analysis
+```{r}
+dim(coladm)
+names(coladm)
+head(coladm)
+cor(coladm)
+```
+#plot gre,admit to see their relation 
+```{r}
+ggplot(coladm, aes(gre, admit)) +
+  geom_jitter(width = 0.2)
+```
+#plot gpa,gre to see their relation 
+```{r}
+ggplot(coladm, aes(x=gpa, y=gre)) +
+  geom_point(size=3, shape=1)
 ```
 
-
-```{r}
-# Variables + interactions
-model_fn(admit ~ Neighborhood + gpa + Neighborhood:gpa, data = coladm)
-# Shorthand for all predictors
-model_fn(admit ~ ., data = coladm_train)
-# Inline functions / transformations
-model_fn(log10(admit) ~ ns(Longitude, df = 3) + ns(Latitude, df = 3), data = coladm_train)
-
-
-```
-
-```{r}
-features <- c("gpa", "gre", "rank")
-model_fn(x = coladm_train[, features], y = coladm_train$admit)
-```
+#Supervised Modeling Process
 
 ```{r}
 # 1. stratified sampling with the rsample package
@@ -63,14 +48,26 @@ set.seed(123)
 split  <- initial_split(coladm, prop = 0.7, strata = "admit")
 coladm_train  <- training(split)
 coladm_test   <- testing(split)
+```
+
+```{r}
+
 # 2. create a resampling method
 cv <- trainControl(
   method = "repeatedcv", 
   number = 10, 
   repeats = 5
   )
+```
+
+```{r}
+
 # 3. create a hyperparameter grid search
 hyper_grid <- expand.grid(k = seq(2, 26, by = 2))
+```
+
+```{r}
+
 # 4. execute grid search with knn model
 #    use RMSE as preferred metric
 knn_fit <- train(
@@ -81,6 +78,10 @@ knn_fit <- train(
   tuneGrid = hyper_grid,
   metric = "RMSE"
   )
+```
+
+```{r}
+
 # 5. evaluate results
 # print model results
 knn_fit
@@ -91,17 +92,19 @@ ggplot(knn_fit$results, aes(k, RMSE)) +
   scale_y_continuous()
 ```
 
-
-
-
 ```{r}
-
-ggplot(coladm, aes(x=gpa, y=gre)) +
-  geom_point(size=3, shape=1)
-
-
-
+# Do the distributions line up? 
+ggplot(coladm_train, aes(x = admit)) + 
+  geom_line(stat = "density", 
+            trim = TRUE) + 
+  geom_line(data = coladm_test, 
+            stat = "density", 
+            trim = TRUE, col = "red")
 ```
+
+
+
+
 ```{r}
 # log transformation
 coladm_recipe <- recipe(admit ~ ., data = coladm_train) %>%
@@ -109,45 +112,6 @@ coladm_recipe <- recipe(admit ~ ., data = coladm_train) %>%
 
 coladm_recipe
 ```
-```{r}
-coladm_train <- bake(prepare, new_data = coladm_train)
-coladm_test <- bake(prepare, new_data = coladm_test)
-coladm_train
-```
-
-
-
-```{r}
-blueprint <- recipe(admit ~ ., data = coladm_train) %>%
-  step_nzv(all_nominal()) %>%
-  step_integer(matches("gpa|gre|rank")) %>%
-  step_center(all_numeric(), -all_outcomes()) %>%
-  step_scale(all_numeric(), -all_outcomes()) %>%
-  step_dummy(all_nominal(), -all_outcomes(), one_hot = TRUE)
-```
-
-
-```{r}
-# Specify resampling plan
-cv <- trainControl(
-  method = "repeatedcv", 
-  number = 10, 
-  repeats = 5
-)
-
-# Construct grid of hyperparameter values
-hyper_grid <- expand.grid(k = seq(2, 25, by = 1))
-
-# Tune a knn model using grid search
-knn_fit2 <- train(
-  blueprint, 
-  data = coladm_train, 
-  method = "knn", 
-  trControl = cv, 
-  tuneGrid = hyper_grid,
-  metric = "RMSE"
-)
-```
 
 
 
@@ -165,24 +129,4 @@ knn_fit2 <- train(
 
 
 
-##exploratory data analysis
-```{r}
-dim(coladm)
-head(coladm)
-```
-
-```{r}
-coladm <- drop_na(coladm)
-cor(coladm)
-```
-```{r}
- 
-describeData(coladm) 
-
-```
-
-```{r}
-ggplot(coladm, aes(gre, admit)) +
-  geom_jitter(width = 0.2)
-```
 
