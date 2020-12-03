@@ -20,6 +20,8 @@ Also, I implement the project in both R and Python.<br />
     * Random Forest <br />
     * Extra:KNN <br />
 
+NOTE: I used green color for plots I know it's not suitable because of Color blindness but I chose it because it's the color of my college KKU. I used different Color Saturation to solve this problem.
+
 ## Repository content
 
 * College_Admission in R<br />
