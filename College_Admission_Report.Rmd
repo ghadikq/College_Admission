@@ -1,58 +1,578 @@
 ---
-title: "College_Admission_Report"
-output: html_document
+title: "College Admission Report"
+author: "Ghadi K"
+date: "11-18-2020"
+output: 
+  html_document:
+    theme: "sandstone"
+    highlight: espresso
+    toc: true
+    toc_depth: 4
+    toc_float:
+      collapsed: true
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
-#RQ what the important factors to get admitted in collage ?
-#can we predict if the student will be admmited ?
 
-```{r}
-library(rsample)
+# Analysis Purpose
+
+The purpose of this analysis is to see if I can create a model to predict college student's admission and how using different models will have a different prediction accuracy.
+Also, this dataset has a challenge which is a small size. I learned that working on small data for prediction is not the best choice so I wanted to experiment with it and see if I could overcome this challenge by using different methods or is it really bad to use small data set.
+
+# Dataset
+
+This Analyzes the historical data and determines the key drivers for admission. To answer the question of what are the important factors to get admitted to college? and can we predict if the student will be admitted? based on available data.
+
+The dataset used here is College_admission. Every year thousands of applications are being submitted by international students for admission in colleges of the USA. It becomes an iterative task for the Education Department to know the total number of applications received and then compare that data with the total number of applications successfully accepted and visas processed. Hence to make the entire process easy, the education department in the US analyzes the factors that influence the admission of a student into colleges. 
+
+```{r, echo=FALSE , warning=FALSE, message=FALSE,results='hide'}
+library(rsample)# data splitting
 library(caret)
 library(tidyverse)
+library(DT)
+library(sjPlot)# to represent the results in nice way
+library(dplyr)
+library("ggpubr")
+library(ranger)  
+library(vip)# visualize feature importance 
+library(pdp)# visualize feature effects
+library(gbm)
+library(xgboost)
 
 # import dataset
 coladm <- read.csv("C:\\Users\\ghadi\\Documents\\DataSet\\College_admission.csv")
-
-```
-# make sure data is tidy
-```{r}
-coladm <- drop_na(coladm)
-```
-#exploratory data analysis
-```{r}
 dim(coladm)
 names(coladm)
-head(coladm)
-cor(coladm)
+str(coladm)
 ```
-#plot gre,admit to see their relation 
-```{r}
-ggplot(coladm, aes(gre, admit)) +
-  geom_jitter(width = 0.2)
+
+# Structure Of The Dataset
+
+I need to change type for my variables.Transform the numeric data type to factor and vice-versa.
+Here is the columns and there types after fixing it. Also I cleaned data from NA values.
+
+```{r, echo=FALSE , warning=FALSE, message=FALSE}
+# str(coladm) # show types before change type
+coladm$admit=as.factor(coladm$admit)
+coladm$ses=as.factor(coladm$ses)
+coladm$Gender_Male=as.factor(coladm$Gender_Male)
+coladm$Race=as.factor(coladm$Race)
+coladm$rank=as.factor(coladm$rank)
+# str(coladm) # show types after change type
+summary(coladm) # show type & values for each column 
 ```
-#plot gpa,gre to see their relation 
-```{r}
+
+```{r, echo=FALSE , warning=FALSE, message=FALSE,results='hide'}
+# Find the missing values & perform missing value treatment
+coladm <- drop_na(coladm)
+```
+
+# Exploratory Data Analysis
+
+Here is how data look like.
+```{r, echo=FALSE , warning=FALSE, message=FALSE}
+datatable(head(coladm))
+```
+
+Number of students admitted to collage where :
+0 = Did not admitted
+1 = admitted
+
+```{r, echo=FALSE , warning=FALSE, message=FALSE}
+# Number of students
+coladm %>% 
+  count(admit)
+```
+This plot show number of student admissions.
+
+```{r, echo=FALSE , warning=FALSE, message=FALSE}
+ggplot(coladm, aes(admit,fill = admit)) +
+  geom_bar()+
+  scale_fill_brewer(palette="Green")+
+  ggtitle("Number of Admissions")+ theme(plot.title=element_text(face="bold"))#bold title
+```
+
+
+
+
+# Outliers
+
+Since the data is small outliers have a massive impact on the model. So, there is a need to identify and remove outliers. Removing the impact of outliers is essential for getting a sensible model with a small dataset.
+
+## Find Outliers in gre
+
+We can use box plot to found and detect outliers and that what I did to data.
+I visualize gre data in Box plot since it is help to detect the outliers we can see that there is outliers so i need to remove outlier.
+
+```{r, echo=FALSE , warning=FALSE, message=FALSE}
+# find & perform outlier treatment 
+# plot box plot to detect outliers in Graduate Record Exam Scores
+ggplot(coladm, aes(x=admit, y=gre, fill=admit)) + 
+    geom_boxplot(alpha=0.8) +
+    theme(legend.position="none") +
+    scale_fill_brewer(palette="Green")+
+    ggtitle("GRE Before Remove Outliers")+     
+    theme(plot.title=element_text(face="bold"))#bold title
+```
+
+I used boxplot.stats to get the indexs of the outliers. 
+which are:
+```{r, echo=FALSE , warning=FALSE, message=FALSE}
+# choose the outliers and show where they are in dataset
+out <-boxplot.stats(coladm$gre)$out
+out_ind <- which(coladm$gre %in% c(out))
+out_ind #show index
+```
+
+Here is the outliers entire row:
+
+```{r, echo=FALSE , warning=FALSE, message=FALSE}
+# show outliers values
+coladm[out_ind, ] 
+# remove outlines using index
+coladm<-coladm[!(row.names(coladm) %in% c('72','180','305','316')), ]
+
+```
+
+Below is the BoxPlot for data after remove outliers now the data do not have any outliers and we can start use it.
+
+```{r, echo=FALSE , warning=FALSE, message=FALSE}
+# boxplot after remove outliers
+ggplot(coladm, aes(x=admit, y=gre, fill=admit)) + 
+    geom_boxplot(alpha=0.8) +
+    theme(legend.position="none") +
+    scale_fill_brewer(palette="Green")+
+    ggtitle("GRE Before Remove Outliers")+     
+    theme(plot.title=element_text(face="bold"))#bold title
+```
+
+## Find Outliers in gpa
+
+Also after I visualize gpa data in Box plot I found its has outliers as well so i removed the outliers
+
+```{r, echo=FALSE , warning=FALSE, message=FALSE}
+# plot box plot to detect outliers in Grade Point Average
+ggplot(coladm, aes(x=admit, y=gpa, fill=admit)) + 
+    geom_boxplot(alpha=0.8) +
+    theme(legend.position="none") +
+    scale_fill_brewer(palette="Green")+
+    ggtitle("GPA Before Remove Outliers")+     
+    theme(plot.title=element_text(face="bold"))#bold title
+
+```
+
+I used boxplot.stats to get the indexs of the outliers. 
+which are:
+```{r, echo=FALSE , warning=FALSE, message=FALSE}
+# choose the outliers and show where they are in dataset
+out <-boxplot.stats(coladm$gpa)$out
+out_ind <- which(coladm$gpa %in% c(out))
+out_ind #show index
+coladm[out_ind, ]
+```
+
+Here is the outliers entire row:
+
+```{r, echo=FALSE , warning=FALSE, message=FALSE}
+# remove outlines using index
+coladm<-coladm[!(row.names(coladm) %in% c('290')), ]
+
+```
+
+Now I check boxplot again to see change in it after remove outiers.
+
+```{r, echo=FALSE , warning=FALSE, message=FALSE}
+# boxplot after remove outliers
+ggplot(coladm, aes(x=admit, y=gpa, fill=admit)) + 
+    geom_boxplot(alpha=0.8) +
+    theme(legend.position="none") +
+    scale_fill_brewer(palette="Green")+
+    ggtitle("GPA After Remove Outliers")+     
+    theme(plot.title=element_text(face="bold"))#bold title
+```
+
+The data now has no outliers so I Can contiue the analysis.
+
+
+
+
+# Data Visualization
+
+First I visualize the numeric values in my data to understand it better and see what I can do if I want to use it in my analysis.<br />
+I want to find whether the data is normally distributed or not so I use a density plot to represent the distribution of a numeric variable. Since it shows the probability density function of the variable.<br />
+A normal distribution of data is one in which the majority of data points are relatively similar, meaning they occur within a small range of values with fewer outliers on the high and low ends of the data range and I did this to see how strong the gpa and gre are.<br />
+
+```{r, echo=FALSE , warning=FALSE, message=FALSE}
+ggdensity(coladm$gpa, 
+          main = "GPA Density Plot",
+          xlab = "gpa")
+ggdensity(coladm$gre, 
+          main = "GRE Density Plot",
+          xlab = "gre")
+
+```
+I want to test the normality further so I used The R function `shapiro.test()` can be used to perform the Shapiro-Wilk test of normality for one variable (univariate):<br />
+
+Here is GPA Shapiro Test result:
+
+```{r, echo=FALSE , warning=FALSE, message=FALSE}
+shapiro.test(coladm$gpa)
+```
+
+Here is GRE Shapiro Test result:
+
+```{r, echo=FALSE , warning=FALSE, message=FALSE}
+shapiro.test(coladm$gre)
+```
+From the output obtained we can assume normality. The p-value is greater than 0.05. Hence, the distribution of the given data is not different from normal distribution significantly BUT now we can see that the data is not normally distributed since result is NOT greater than 0.05 so we will apply log transformable to make it close to normal distribution as much as possible.<br />
+
+So After applying log transformation and retest the values using Shapiro Test the results are :<br />
+
+```{r, echo=FALSE , warning=FALSE, message=FALSE}
+# apply log
+coladm$gpa = log(coladm$gpa)
+coladm$gre = log(coladm$gre)
+```
+
+GPA Shapiro Test result after log transformation:
+
+```{r, echo=FALSE , warning=FALSE, message=FALSE}
+# shapiro test to check normality for gpa
+shapiro.test(coladm$gpa)
+
+```
+
+GRE Shapiro Test result after log transformation:
+
+```{r, echo=FALSE , warning=FALSE, message=FALSE}
+shapiro.test(coladm$gre)
+```
+
+Plot the density plot for GPA and GRE again to see the different in the plot.
+
+```{r, echo=FALSE , warning=FALSE, message=FALSE}
+# plot shapes again 
+ggdensity(coladm$gpa, 
+          main = "Density plot of gpa",
+          xlab = "gpa")
+ggdensity(coladm$gre, 
+          main = "Density plot of gre",
+          xlab = "gre")
+```
+
+# Variable Reduction Techniques
+
+Use variable reduction techniques to identify significant variables.<br />
+Here I wanted to see if I can use gpa to predict the gre.
+
+```{r, echo=FALSE , warning=FALSE, message=FALSE,results='hide'}
+#linear regression to see relation between gpa & gre
+relr <- lm(gre ~ gpa,data=coladm)
+summary(relr)
+# to represent the results in nice way
+tab_model(relr)
+```
+
+so we are confident that gpa can predict gre.<br />
+
+Here I plot gpa and gre to see their relation and found that they do relate to each other but not enough to use it to predict one of it. Also having small data here is disadvantage for this prediction.<br />
+
+So I will not use gre to predict gpa in this analysis.
+
+```{r, echo=FALSE , warning=FALSE, message=FALSE}
 ggplot(coladm, aes(x=gpa, y=gre)) +
-  geom_point(size=3, shape=1)
+  geom_point(size=3, shape=1,color='DarkGreen')
 ```
 
-#Supervised Modeling Process
+# Modeling
 
-```{r}
-# 1. stratified sampling with the rsample package
+In a small dataset is better to choose simple models. Complex models with many parameters are more prone to overfitting which I want to avoid. In this analysis, I will experiment with a prediction using the following models:<br />
+* Logistic Regression<br />
+* GBM<br />
+* Random Forests<br />
+
+And see how each model will preform.
+
+```{r, echo=FALSE , warning=FALSE, message=FALSE,results='hide'}
+# split data into train & test
 set.seed(123)
 split  <- initial_split(coladm, prop = 0.7, strata = "admit")
 coladm_train  <- training(split)
 coladm_test   <- testing(split)
 ```
 
-```{r}
+## Logistic Regression 
 
-# 2. create a resampling method
+Fit the logistic regression model for all predictors.
+
+```{r, echo=FALSE , warning=FALSE, message=FALSE}
+model_glm = glm(admit ~ . , family="binomial", data = coladm_train)
+summary(model_glm)
+```
+
+Fit the logistic regression model for rank only.<br />
+To compare performance between 2 logistic regression models.
+
+```{r, echo=FALSE , warning=FALSE, message=FALSE}
+model_glm2 = glm(admit ~ rank , family="binomial", data = coladm_train)
+summary(model_glm2)
+```
+
+Now I will use second model to predict admit & fit model to train/test data.
+Here is Confusion matrix for Train / Test.
+```{r, echo=FALSE , warning=FALSE, message=FALSE}
+# Predictions on the training set
+predictTrain = predict(model_glm2, data = coladm_train, type = "response")
+
+# Confusion matrix on training data
+table(coladm_train$admit, predictTrain >= 0.5)
+(114+268)/nrow(coladm_train)
+
+#Predictions on the test set
+predictTest = predict(model_glm2, newdata = coladm_test, type = "response")
+
+# Confusion matrix on test set
+table(coladm_test$admit, predictTest >= 0.5)
+158/nrow(coladm_test) 
+```
+
+
+
+
+## GBM
+
+Here I used basic GBM since it is simpler and better for this small data set.
+
+```{r, echo=FALSE , warning=FALSE, message=FALSE}
+set.seed(123)
+coladm_gbm <- gbm(
+  formula = admit ~ .,#have all features 
+  data = coladm_train,
+  distribution = "gaussian",
+  n.trees = 100, #number of tree , i chose default number of trees 100 to avoid overfit
+  shrinkage = 0.1, #learning rate
+  interaction.depth = 1, # depth of each tree I kept the default value 1 so it's not able to capture any interaction effects
+  n.minobsinnode = 10, # also here kept default value for tree terminal nodes 
+  cv.folds = 8 # i decide to reduce folds to fit better with smaller data
+  )  
+
+# find index for n trees with minimum CV error
+min_MSE <- which.min(coladm_gbm$cv.error)
+
+# model performance get MSE and compute RMSE
+sqrt(coladm_gbm$cv.error[min_MSE])
+```
+
+Number of trees used in GBM:
+
+```{r, echo=FALSE , warning=FALSE, message=FALSE}
+gbm.perf(coladm_gbm, method = "cv")
+
+```
+
+Tree Tuning strategy :
+I that reduce learning rate while increase number of iterations will reduce the RMSE and give better accuracy.
+The values I used for tune parameters gives me the least RMSE I could get out of this model.
+
+```{r, echo=FALSE , warning=FALSE, message=FALSE}
+set.seed(123)
+coladm_gbm1 <- gbm(
+  formula = admit ~ .,
+  data = coladm_train,
+  distribution = "gaussian", 
+  n.trees = 100, #reduce No of tree to fit with learning rate
+  shrinkage = 0.005, #reduce learning rate to increase accuracy 
+  interaction.depth = 10, #<<
+  n.minobsinnode = 10, #<<
+  cv.folds = 15 #<<
+  )
+
+# find index for n trees with minimum CV error
+min_MSE <- which.min(coladm_gbm1$cv.error)
+
+# get MSE and compute RMSE
+sqrt(coladm_gbm1$cv.error[min_MSE])
+
+gbm.perf(coladm_gbm1, method = "cv")
+```
+
+Tree Tuning using Hyper grid:<br />
+After using hyper grid for tunning the RMSE increase more than previous tunning stratigy and hyper grid gives better result for GBM model.
+
+```{r, echo=FALSE , warning=FALSE, message=FALSE}
+# search grid
+hyper_grid <- expand.grid(
+  n.trees = 20,
+  shrinkage = .01,
+  interaction.depth = c(3, 5, 7), 
+  n.minobsinnode = c(5, 10, 15) 
+)
+
+model_fit <- function(n.trees, shrinkage, interaction.depth, n.minobsinnode) {
+  set.seed(123)
+  m <- gbm(
+    formula = admit ~ .,
+    data = coladm_train,
+    distribution = "gaussian",
+    n.trees = n.trees,
+    shrinkage = shrinkage, #use function values to have best result for learning rate
+    interaction.depth = interaction.depth, #use function values to have best result for number of iteration
+    n.minobsinnode = n.minobsinnode,#use function values to have best result for number of tree terminal nodes
+    cv.folds = 10
+  )
+  # compute RMSE
+  sqrt(min(m$cv.error))
+}
+
+hyper_grid$rmse <- pmap_dbl(
+  hyper_grid,
+  ~ model_fit(
+    n.trees = ..1,
+    shrinkage = ..2,
+    interaction.depth = ..3,
+    n.minobsinnode = ..4
+    )
+)
+
+arrange(hyper_grid, rmse)
+```
+
+
+
+
+## Random Forests
+
+I know that Decision Tree and Random Forest are not the best choices for small datasets since it is better to use a simple model but I want to see the effect of these models on my dataset and how it will affect the prediction results.
+
+
+```{r, echo=FALSE , warning=FALSE, message=FALSE}
+# number of features
+features <- setdiff(names(coladm_train), "admit")
+
+# perform basic random forest model
+RFmodel <- ranger(
+  formula    = admit ~ ., 
+  data       = coladm_train, 
+  num.trees  = length(features) * 10,
+  mtry       = floor(length(features) / 3),
+  respect.unordered.factors = 'order',
+  verbose    = FALSE,
+  seed       = 123
+  )
+```
+
+Random Forests Model results so RMSE = 0.5783877
+
+```{r, echo=FALSE , warning=FALSE, message=FALSE}
+# look at results
+RFmodel
+# compute RMSE
+sqrt(RFmodel$prediction.error)
+```
+
+Now I could find characteristics to Consider 
+
+```{r, echo=FALSE , warning=FALSE, message=FALSE}
+# find important features 
+coladm_train %>%
+  summarise_if(is.factor, n_distinct) %>% 
+  gather() %>% 
+  arrange(desc(value))
+```
+
+Tuning Random Forest Trees
+RMSE for each Tree 
+
+```{r, echo=FALSE , warning=FALSE, message=FALSE}
+# number of features
+n_features <- ncol(coladm_train) - 1
+
+# ranger function
+oob_error <- function(trees) {
+  fit <- ranger(
+  formula    = admit ~ ., 
+  data       = coladm_train, 
+  num.trees  = trees, #<<
+  mtry       = floor(n_features / 3),
+  respect.unordered.factors = 'order',
+  verbose    = FALSE,
+  seed       = 123
+  )
+  
+  sqrt(fit$prediction.error)
+}
+
+# tuning grid
+trees <- seq(10, 1000, by = 20)
+
+(rmse <- trees %>% purrr::map_dbl(oob_error))
+```
+Here is the correlation for each of features and target.
+
+```{r, echo=FALSE , warning=FALSE, message=FALSE}
+# feature correlation
+cor_matrix <- coladm_train %>%
+  mutate_if(is.factor, as.numeric) %>%
+  cor()
+
+data_frame(
+  row  = rownames(cor_matrix)[row(cor_matrix)[upper.tri(cor_matrix)]],
+  col  = colnames(cor_matrix)[col(cor_matrix)[upper.tri(cor_matrix)]],
+  corr = cor_matrix[upper.tri(cor_matrix)]
+  ) %>%
+  arrange(desc(abs(corr)))
+
+# target correlation
+data_frame(
+    row  = rownames(cor_matrix)[row(cor_matrix)[upper.tri(cor_matrix)]],
+    col  = colnames(cor_matrix)[col(cor_matrix)[upper.tri(cor_matrix)]],
+    corr = cor_matrix[upper.tri(cor_matrix)]
+) %>% filter(col == "admit") %>%
+    arrange(desc(abs(corr)))
+```
+
+Tuning Using hyper grid
+
+```{r, echo=FALSE , warning=FALSE, message=FALSE}
+# Tune hyper grid
+hyper_grid <- expand.grid(
+  mtry            = floor(n_features * c(.05, .15, .25, .333, .4)),
+  min.node.size   = c(1, 3, 5),
+  replace         = c(TRUE, FALSE),
+  sample.fraction = c(.5, .63, .8),
+  rmse            = NA
+)
+
+# number of hyperparameter combinations
+nrow(hyper_grid)
+
+head(hyper_grid)
+```
+
+
+
+Tuning results 
+
+```{r, echo=FALSE , warning=FALSE, message=FALSE}
+default_rmse <- sqrt(RFmodel$prediction.error)
+#Tuning results 
+hyper_grid %>%
+  arrange(rmse) %>%
+  mutate(perc_gain = (default_rmse - rmse) / default_rmse * 100) %>%
+  head(10)
+```
+
+
+
+# Extra
+
+KNN Model  <br />
+After Kaggle project I wanted to try implement KNN with my data to understand it better.
+
+```{r, echo=FALSE , warning=FALSE, message=FALSE,results='hide'}
+# create  resampling method
 cv <- trainControl(
   method = "repeatedcv", 
   number = 10, 
@@ -60,73 +580,30 @@ cv <- trainControl(
   )
 ```
 
-```{r}
-
-# 3. create a hyperparameter grid search
+```{r, echo=FALSE , warning=FALSE, message=FALSE,results='hide'}
+#hyperparameter grid search
 hyper_grid <- expand.grid(k = seq(2, 26, by = 2))
 ```
 
-```{r}
-
-# 4. execute grid search with knn model
-#    use RMSE as preferred metric
+```{r, echo=FALSE , warning=FALSE, message=FALSE,results='hide'}
+# execute grid search with knn model
 knn_fit <- train(
   admit ~ ., 
   data = coladm_train, 
   method = "knn", 
   trControl = cv, 
   tuneGrid = hyper_grid,
-  metric = "RMSE"
+  metric = "Accuracy"
   )
+
 ```
 
-```{r}
-
-# 5. evaluate results
-# print model results
+```{r, echo=FALSE , warning=FALSE, message=FALSE}
+# show model results
 knn_fit
-# plot cross validation results
-ggplot(knn_fit$results, aes(k, RMSE)) + 
+ggplot(knn_fit$results, aes(k, Accuracy)) + 
   geom_line() +
   geom_point() +
   scale_y_continuous()
 ```
-
-```{r}
-# Do the distributions line up? 
-ggplot(coladm_train, aes(x = admit)) + 
-  geom_line(stat = "density", 
-            trim = TRUE) + 
-  geom_line(data = coladm_test, 
-            stat = "density", 
-            trim = TRUE, col = "red")
-```
-
-
-
-
-```{r}
-# log transformation
-coladm_recipe <- recipe(admit ~ ., data = coladm_train) %>%
-  step_log(all_outcomes())
-
-coladm_recipe
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
