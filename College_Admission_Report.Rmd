@@ -564,7 +564,13 @@ hyper_grid %>%
   head(10)
 ```
 
+# Conclusion
 
+This data does not provide enough elements to predict if a high school student got admitted or not and based on that the prediction model not very accurate so can't tell for sure if a student is admitted or not.<br />
+
+This decision has a lot of outer factors that affect it like what are the other student grades that based on that the acceptance percentage can change and based on their GPA and GRE the acceptance process change entirely.<br />
+
+So this why I think this prediction is not good with the currently provided data also enhancing this prediction requires having larger data and in my opinion, this would help to be more accurate in the prediction so using small data for this prediction is a bad decision. <br /> 
 
 # Extra
 
