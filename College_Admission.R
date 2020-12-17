@@ -12,7 +12,7 @@ library(gbm)
 library(xgboost)
 
 # import dataset
-coladm <- read.csv("C:\\Users\\ghadi\\Documents\\DataSet\\College_admission.csv")
+coladm <- read.csv("data\\College_admission.csv")
 dim(coladm)
 names(coladm)
 str(coladm)

@@ -1,13 +1,12 @@
 ---
-title: "College Admission Report"
+title: "Online Retail Report"
 author: "Ghadi K"
-date: "11-18-2020"
+date: "12-14-2020"
 output: 
   html_document:
-    theme: "sandstone"
-    highlight: espresso
     toc: true
     toc_depth: 4
+    class.output: "bg-warning"
     toc_float:
       collapsed: true
 ---
@@ -42,7 +41,7 @@ library(gbm)
 library(xgboost)
 
 # import dataset
-coladm <- read.csv("C:\\Users\\ghadi\\Documents\\DataSet\\College_admission.csv")
+coladm <- read.csv("data//College_admission.csv")
 dim(coladm)
 names(coladm)
 str(coladm)
