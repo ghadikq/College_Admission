@@ -1,6 +1,6 @@
 # College Admission
 
-## Stage 3: Machine Learning Discovery
+## Machine Learning Discovery
 
 In this project, I wanted to create a model to predict if a high school student will be admitted into college based on elements provided in my dataset like GPA, GRE, and Rank.<br />
 This project has a challenge which is a small dataset so I try to deal with the challenge using different methods to create the prediction model.<br />
